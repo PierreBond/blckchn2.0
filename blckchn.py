@@ -130,7 +130,83 @@ class Blockchain:
 
     def resolve_conflicts(self)-> bool:
         neighbours = self.nodes
-        new.chain: Optional[List[Block]] =none
+        new_chain: Optional[List[Block]] = None
         max_len = len(self.chain)
 
         for node in neighbours:
+            try:
+                resp = requests.get(f"http://{node}/chain", timeout=3)
+                if resp.status_code ==200:
+                    data = resp.json()
+                    length = data["length"]
+                    candidate = [Block(**b) for b in data ["chain"]]
+                    if length > max_len and self.valid_chain(candidate):
+                        max_len = length
+                        new_chain = candidate
+            except requests.RequestException:
+                logger.warning("Unreachable node %s", node)
+                continue
+        if new_chain:
+            with self._lock:
+                self.chain = new_chain
+            logger.info("Chain replaced with length %s", max_len)
+            return True
+        return False
+    
+    @property
+    def last_block(self) -> Block:
+        with self._lock:
+            return self.chain[-1]
+        
+# flask web layer 
+app = Flask(__name__)
+node_identifier = str(uuid.uuid4()).replace("-","")
+blockchain = Blockchain()
+
+# routes
+
+@app.route("/chain", methods=["GET"])
+def full_chain()-> Response:
+    chain_data = [b.dict() for b in blockchain.chain]
+    return jsonify({"chain": chain_data, "length": len(chain_data)})
+
+@app.route("/transactions/new", methods=["POST"])
+def new_transaction()-> tuple[Response, int]:
+    values =  request.get_json(silent=True)
+    if not values:
+        return jsonify({"error":"JSON body is required"}), 400
+    required = {"sender", "recipient", "amount"}
+    if not required.issubset(values):
+        return jsonify({"error": "Missing values"}), 400
+    try:
+        idx = blockchain.new_transaction(
+            sender=str(values["sender"]),
+            recipient=str(values["recipient"]),
+            amount=int(values["amount"])
+        )
+    except ValueError as e:
+        return jsonify({"error":str(e)}), 400
+    return jsonify({"message": f"Transaction will be added to Block {idx}"}), 201
+
+@app.route("/mine", methods=["GET"])
+def mine() -> tuple[Response, int]:
+    last_block = blockchain.last_block
+    proof = blockchain._proof_of_work(last_block.proof)
+
+    # reward transaction
+    blockchain.new_transaction(
+        sender="0",
+        recipient=node_identifier,
+        amount=1
+    )
+    block = blockchain.new_block(proof)
+
+    response ={
+        "message":"New Block Forged", 
+        "index": block.index,
+        "transactions":[tx.dict() for tx in block.transactions],
+        "proof": block.proof,
+        "previous_hash": block.previous_hash,
+    }
+    return jsonify(response), 200
+
