@@ -56,7 +56,7 @@ class Blockchain:
             previous_hash="0" * 64,
         )
         self.chain.append(genesis)
-        logger.info("Genesi clock created")
+        logger.info("Genesis block created")
 
     @staticmethod
     def hash(block: Block) -> str:
@@ -210,7 +210,7 @@ def mine() -> tuple[Response, int]:
     }
     return jsonify(response), 200
 
-@app.route("nodes/register",methods =["POST"])
+@app.route("/nodes/register",methods =["POST"])
 def register_nodes()-> tuple[Response, int]:
     values = request.get_json(silent=True)
     if not values or "nodes" not in values:
@@ -222,12 +222,12 @@ def register_nodes()-> tuple[Response, int]:
             return jsonify({"error", str(e)}), 400
     return jsonify({"message":"New  nodes have been added", "total_nodes":list(blockchain.nodes)}), 201
 
-@app.route("nodes/resolve", methods=["GET"])
+@app.route("/nodes/resolve", methods=["GET"])
 def concensus()-> tuple[Response, int]:
     replaced = blockchain.resolve_conflicts()
     if replaced :
         return jsonify({"message":"Our chain was replaced","chain":[b.dict() for b in blockchain.chain]}), 200
     return jsonify({"message":"Our chain was authoritative","chain":[b.dict() for b in blockchain.chain]}), 200
 
-if __name__ == "main":
+if __name__ == "__main__":
     app.run(host="0.0.0.0", port= 5000 , threaded = True)
