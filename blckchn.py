@@ -230,4 +230,8 @@ def concensus()-> tuple[Response, int]:
     return jsonify({"message":"Our chain was authoritative","chain":[b.dict() for b in blockchain.chain]}), 200
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port= 5000 , threaded = True)
+    import argparse 
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-p,", "--port", type= int , default = 5000, help = " port to listen on (default 5000)")
+    args = parser.parse_args()
+    app.run(host="0.0.0.0", port= args.port , threaded = True)
