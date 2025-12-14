@@ -109,6 +109,8 @@ class Blockchain:
             return self.chain[-1].index + 1 
     
     def register_node(self, address:str) -> None:
+         if "://" not in address:
+             address = f"http://{address}"
          parsed = urlparse(address)
          if not parsed:
              raise ValueError("Invalid URL")
