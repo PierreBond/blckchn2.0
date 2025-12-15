@@ -72,3 +72,24 @@ def cmd_send(pem_file: str, to: str, amount: int) -> None:
         }
         resp = requests.post(f"{API}/transactions", json=payload)
         print(resp.json())
+
+def cmd_chain():
+    blk = requests.get(f"{API}/chain").json()["chain"][-1]
+    print(json.dumps(blk, indent=2))
+
+# dispatcher
+if __name__ == "__main__":
+    if len(sys.argv) <2 :
+        print("Usage: python wallet.py <command> [args]")
+        sys.exit(1)
+    cmd = sys.argv[1]
+    if cmd == "gen":
+        cmd_gen()
+    elif cmd == "balance" and len(sys.argv) ==3 :
+        cmd_balance(sys.argv[2])
+    elif cmd == "send" and len(sys.argv) == 5 :
+        cmd_send(sys.argv[2], sys.argv[3], int(sys.argv[4]))
+    elif cmd == "chain":
+        cmd_chain()
+    else:
+        print("Invalid command or args")
