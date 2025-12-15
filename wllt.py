@@ -2,7 +2,7 @@ import json
 import sys
 import hashlib
 import requests 
-from  cryptography.hazmat.primitives.asymmetric import ec
+from  cryptography.hazmat.primitives.asymmetric import ec 
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.utils import encode_dss_signature, decode_dss_signature
 from cryptography.hazmat.primitives import hashes 
@@ -39,16 +39,36 @@ def cmd_balance(addr):
                 balance += tx["amount"]
     print("Balance:", balance)
 
-def cmd_send(pem_file, to , amount):
+def cmd_send(pem_file: str, to: str, amount: int) -> None:
     with open(pem_file, "rb") as f:
         sk = serialization.load_pem_private_key(
             f.read(),
-            password = None,
+            password=None,
         )
+        if not isinstance(sk, ec.EllipticCurvePrivateKey):
+            raise ValueError("Private key is not an EC key")
+            
         sender = sk_to_address(sk)
-        tx = { "sender": sender, "recipient": to, "amount":amount}
+        tx = {"sender": sender, "recipient": to, "amount": amount}
         tx_str = json.dumps(tx, sort_keys=True).encode()
-        sig = sk.sign(tx_str, ec.ECDSA(hashes.SHA256()))
-        r, s = decode_dss_signature(sig)
-
-        tx["signature"] = {"r",r.hex(), "s": s.hex()}
+        
+        signature = sk.sign(
+            tx_str, 
+            ec.ECDSA(hashes.SHA256())
+        )
+        r, s = decode_dss_signature(signature)
+        
+        tx["signature"] = {
+            "r": r.to_bytes(32, 'big').hex(),
+            "s": s.to_bytes(32, 'big').hex()
+        }
+        
+        # Submit the transaction
+        payload = {
+            "sender": sender,
+            "recipient": to,
+            "amount": amount,
+            "signature": tx["signature"]
+        }
+        resp = requests.post(f"{API}/transactions", json=payload)
+        print(resp.json())
